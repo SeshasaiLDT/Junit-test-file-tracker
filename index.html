@@ -21,30 +21,25 @@
     .authbar { display:flex; gap:10px; align-items:center; margin:8px 0 16px; }
     .muted { color:#555; font-size:12px; }
 
-    /* Summary bars */
     .summary {
       display: flex; justify-content: space-around; margin: 16px 0; padding: 12px;
       background: #f7f7f9; border: 1px solid #cfd2d6; font-weight: bold; font-size: 14px; border-radius: 8px;
     }
 
-    /* Section headers */
     .section-header { display:flex; align-items:center; justify-content:space-between; margin-top:24px; margin-bottom:8px; }
     .section-title { font-size:22px; font-weight:700; display:inline-flex; align-items:center; gap:10px; }
     .toggle-btn { cursor:pointer; border:1px solid #b9bec4; background:#fff; padding:4px 8px; border-radius:6px; font-size:12px; }
 
-    /* Subfolder title bar (neutral, high-contrast) */
     .subfolder-header {
       background:#eef3f7; color:#1f2937; border:1px solid #cfd8e3; border-radius:8px; font-weight:600;
       padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
     }
     .subfolder-left, .subfolder-right { display:inline-flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
-    /* Status phrases */
     .status-group { display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .status-pill { border:1px solid #cbd5e1; border-radius:999px; padding:2px 8px; font-size:12px; background:#fff; white-space:nowrap; }
     .status-ready { border-color:#22c55e; } .status-partial { border-color:#f59e0b; } .status-none { border-color:#ef4444; }
     .hidden { display:none; }
-
     .collapsed { display:none; }
     .disabled-note { font-size:12px; color:#666; }
   </style>
@@ -52,14 +47,13 @@
 <body>
   <h1>Java File Tracker</h1>
 
-  <!-- Auth UI -->
   <div class="authbar">
-    <span id="auth-status" class="muted">Not signed in (view-only)</span>
+    <span id="auth-status" class="muted">Sign in with your work account to view.</span>
     <button id="btn-signin">Sign in with Google</button>
     <button id="btn-signout" class="hidden">Sign out</button>
   </div>
 
-  <div id="controls">
+  <div id="controls" class="hidden">
     <strong>Upload JSON:</strong> <input type="file" id="fileInput" accept=".json">
     <button id="btn-clear">Clear Local Cache</button>
     <span class="muted">(* Uploading JSON updates the shared structure in Firestore.)</span>
@@ -72,24 +66,21 @@
     <button id="btn-export">Export</button>
   </div>
 
-  <!-- Overall summary -->
-  <div id="summary" class="summary" role="status" aria-live="polite">
+  <div id="summary" class="summary hidden" role="status" aria-live="polite">
     <div>📁 Total Files: <span id="summary-total">0</span></div>
     <div>✅ With Tests: <span id="summary-tests">0</span></div>
     <div>📝 With Docs: <span id="summary-docs">0</span></div>
     <div>🔒 Ready for MR: <span id="summary-approval">0</span></div>
   </div>
 
-  <!-- Client summary -->
-  <div id="summary-client" class="summary" role="status" aria-live="polite">
+  <div id="summary-client" class="summary hidden" role="status" aria-live="polite">
     <div>📁 Client Files: <span id="client-total">0</span></div>
     <div>✅ With Tests: <span id="client-tests">0</span></div>
     <div>📝 With Docs: <span id="client-docs">0</span></div>
     <div>🔒 Ready for MR: <span id="client-approval">0</span></div>
   </div>
 
-  <!-- Service summary -->
-  <div id="summary-service" class="summary" role="status" aria-live="polite">
+  <div id="summary-service" class="summary hidden" role="status" aria-live="polite">
     <div>📁 Service Files: <span id="service-total">0</span></div>
     <div>✅ With Tests: <span id="service-tests">0</span></div>
     <div>📝 With Docs: <span id="service-docs">0</span></div>
@@ -98,80 +89,105 @@
 
   <div id="content"></div>
 
-  <!-- Firebase (v10 modular CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // ======= 1) CONFIGURE THIS =======
+    // ======= CONFIGURED FOR YOU =======
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyBuuPs1hcf38PnLli_MSm0K7JS-aKLO0QU",
+      authDomain: "junit-files-tracker.firebaseapp.com",
+      projectId: "junit-files-tracker",
+      storageBucket: "junit-files-tracker.firebasestorage.app",
+      messagingSenderId: "1053194892033",
+      appId: "1:1053194892033:web:f33ed0a4e5aadda311e100",
+      measurementId: "G-T7VJL380SX"
     };
-    // ==================================
+    const TEAM_DOMAINS = ["discounttire.com"]; // Option B allowlist
+    const REQUIRE_AUTH_FOR_READS = true;        // Option B
+    // ===================================
 
-    // Firebase init
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const provider = new GoogleAuthProvider();
 
-    // Collection/docs layout
-    // /tracker/structure -> { client: {...}, service:{...} }
-    // /tracker/state     -> { items: { <b64key>: {has_test,has_doc,ready} } }
-    // /tracker/reviewers -> { items: { <folderId>: "Name" } }
-    // /tracker/collapse  -> { items: { <sectionId|folderId>: true } }
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ hd: "discounttire.com", prompt: "select_account" }); // UX hint
+
+    // Firestore docs
     const docStructure = doc(db, "tracker", "structure");
     const docState     = doc(db, "tracker", "state");
     const docReviewers = doc(db, "tracker", "reviewers");
     const docCollapse  = doc(db, "tracker", "collapse");
 
-    // Local runtime
-    let CURRENT_DATA = null;       // structure
-    let CAN_EDIT = false;          // toggled by auth state
+    // UI helpers
+    const qs  = s => document.querySelector(s);
+    const qsa = s => Array.from(document.querySelectorAll(s));
+    const show = (el, on=true) => (on ? el.classList.remove("hidden") : el.classList.add("hidden"));
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+    // Runtime state
+    let CAN_EDIT = false;
+    let CURRENT_DATA = null;
+    let CURRENT_STATE = { items:{} };
+    let CURRENT_REVIEWERS = { items:{} };
+    let CURRENT_COLLAPSE = { items:{} };
     const ROW_TO_FOLDER = new Map();
     const FOLDER_FILES = {};
+    window._listenersAttached = false;
 
-    // Helpers
-    const b64 = s => btoa(unescape(encodeURIComponent(s)));
-    const unb64 = s => decodeURIComponent(escape(atob(s)));
-
-    const safeGet = (obj, path, fallback) => {
-      try { return path.split('.').reduce((o,k)=>o[k], obj) ?? fallback; } catch { return fallback; }
-    };
-
-    // UI elements
-    const qs  = sel => document.querySelector(sel);
-    const qsa = sel => Array.from(document.querySelectorAll(sel));
-    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    function isTeamUser(user) {
+      if (!user || !user.email) return false;
+      const email = user.email.toLowerCase();
+      return TEAM_DOMAINS.some(d => email.endsWith(`@${d.toLowerCase()}`));
+    }
 
     // Auth UI
     const authStatus = qs("#auth-status");
     const btnSignin = qs("#btn-signin");
     const btnSignout = qs("#btn-signout");
 
-    btnSignin.addEventListener("click", async () => { await signInWithPopup(auth, provider); });
-    btnSignout.addEventListener("click", async () => { await signOut(auth); });
+    btnSignin.onclick = async () => { try { await signInWithPopup(auth, provider); } catch(e){ alert("Sign-in failed."); console.error(e);} };
+    btnSignout.onclick = async () => { try { await signOut(auth); location.reload(); } catch(e){ console.error(e);} };
 
     onAuthStateChanged(auth, async (user) => {
-      CAN_EDIT = !!user;
-      if (user) {
-        authStatus.textContent = `Signed in as ${user.email}`;
-        btnSignin.classList.add("hidden");
-        btnSignout.classList.remove("hidden");
-      } else {
-        authStatus.textContent = "Not signed in (view-only)";
-        btnSignin.classList.remove("hidden");
-        btnSignout.classList.add("hidden");
+      if (user && !isTeamUser(user)) {
+        alert(`Please sign in with your work account (${TEAM_DOMAINS.join(", ")})`);
+        await signOut(auth);
+        return;
       }
-      // toggle inputs
-      toggleEditability(CAN_EDIT);
+      if (!user) {
+        authStatus.textContent = "Sign in with your work account to view.";
+        show(qs("#controls"), false);
+        show(qs("#summary"), false);
+        show(qs("#summary-client"), false);
+        show(qs("#summary-service"), false);
+        qs("#content").innerHTML = "";
+        return;
+      }
+
+      // Team user
+      CAN_EDIT = true;
+      authStatus.textContent = `Signed in as ${user.email}`;
+      show(btnSignin, false);
+      show(btnSignout, true);
+      show(qs("#controls"), true);
+      show(qs("#summary"), true);
+      show(qs("#summary-client"), true);
+      show(qs("#summary-service"), true);
+
+      await ensureDocs(); // create empty docs once you’re allowed
+
+      if (!window._listenersAttached) {
+        attachRealtimeListeners();
+        window._listenersAttached = true;
+      }
     });
+
+    // Utils
+    const b64 = s => btoa(unescape(encodeURIComponent(s)));
+    const safeGet = (obj, path, fallback) => { try { return path.split('.').reduce((o,k)=>o[k], obj) ?? fallback; } catch { return fallback; } };
 
     function toggleEditability(can) {
       qsa("input[type='checkbox'], .reviewer-input, .rev-save-btn").forEach(el => {
@@ -179,10 +195,9 @@
       });
       qsa(".edit-note").forEach(el => el.classList.toggle("hidden", can));
     }
-
-    // ===== Render / Stats (same logic as your latest version) =====
     function getRowKey(path, file){ return `${path}::${file}`; }
 
+    // Stats + phrases
     function computeStatsForFiles(files) {
       const items = safeGet(CURRENT_STATE, "items", {});
       const out = { total: 0, tests: 0, docs: 0, ready: 0 };
@@ -196,7 +211,6 @@
       }
       return out;
     }
-
     function phraseFor(count, total, type, testsAll) {
       if (total === 0) return { text: "", cls: "" };
       const all = count === total, none = count === 0;
@@ -213,12 +227,10 @@
       }
       return { text:"", cls:"" };
     }
-
     function updateSubfolderStatus(folderId) {
       const files = FOLDER_FILES[folderId] || [];
       const s = computeStatsForFiles(files);
       const testsAll = s.tests === s.total;
-
       const tests = phraseFor(s.tests, s.total, "tests", testsAll);
       const docs  = phraseFor(s.docs,  s.total, "docs",  testsAll);
       const ready = phraseFor(s.ready, s.total, "ready", testsAll);
@@ -236,10 +248,7 @@
         if (!ready.text) r.classList.add("hidden");
       }
     }
-
-    function refreshAllSubfolderStatuses() {
-      Object.keys(FOLDER_FILES).forEach(updateSubfolderStatus);
-    }
+    function refreshAllSubfolderStatuses(){ Object.keys(FOLDER_FILES).forEach(updateSubfolderStatus); }
 
     function computeSectionStats(data, sectionName) {
       const out = { total: 0, tests: 0, docs: 0, approval: 0 };
@@ -257,14 +266,12 @@
       }
       return out;
     }
-
     function setBar(prefix, stats) {
       setText(`${prefix}-total`, stats.total);
       setText(`${prefix}-tests`, stats.tests);
       setText(`${prefix}-docs`, stats.docs);
       setText(`${prefix}-approval`, stats.approval);
     }
-
     function renderSummary(data) {
       if (!data) {
         const zero = { total: 0, tests: 0, docs: 0, approval: 0 };
@@ -283,7 +290,7 @@
       });
     }
 
-    // ===== DOM Builders =====
+    // DOM builders
     function createTopSection(sectionName, prettyTitle, dataForSection) {
       const collapse = safeGet(CURRENT_COLLAPSE, "items", {});
       const sectionId = `${sectionName}-section`;
@@ -296,7 +303,7 @@
       header.innerHTML = `
         <div class="section-title">
           <span>${prettyTitle}</span>
-          <button id="${sectionId}-toggle" class="toggle-btn" aria-expanded="true" aria-controls="${sectionId}-content">Collapse ▾</button>
+          <button id="${sectionId}-toggle" class="toggle-btn" aria-expanded="${!collapse[sectionId]}" aria-controls="${sectionId}-content">${collapse[sectionId] ? "Expand ▸" : "Collapse ▾"}</button>
         </div>
       `;
 
@@ -305,7 +312,6 @@
       content.setAttribute("role", "region");
       content.setAttribute("aria-label", `${prettyTitle} content`);
       content.appendChild(createTableSection(dataForSection));
-
       if (collapse[sectionId]) content.classList.add("collapsed");
 
       header.querySelector('button').addEventListener('click', async () => {
@@ -317,7 +323,7 @@
           content.classList.remove('collapsed'); header.querySelector('button').textContent = "Collapse ▾";
           header.querySelector('button').setAttribute("aria-expanded","true");
         }
-        await updateDoc(docCollapse, { [`items.${sectionId}`]: nowCollapsed });
+        try { await updateDoc(docCollapse, { [`items.${sectionId}`]: nowCollapsed }); } catch(e){ console.error(e); }
       });
 
       wrapper.appendChild(header);
@@ -336,7 +342,6 @@
         FOLDER_FILES[folderId] = files;
 
         const wrapper = document.createElement('div');
-
         const header = document.createElement('div');
         header.className = "subfolder-header";
         const reviewerValue = reviewers[folderId] || "";
@@ -395,7 +400,6 @@
           </table>
         `;
 
-        // Toggle collapse
         header.querySelector(`#${folderId}-toggle`).addEventListener('click', async () => {
           const nowCollapsed = !content.classList.contains('collapsed');
           if (nowCollapsed) {
@@ -407,25 +411,23 @@
             header.querySelector(`#${folderId}-toggle`).textContent = "Collapse ▾";
             header.querySelector(`#${folderId}-toggle`).setAttribute("aria-expanded","true");
           }
-          await updateDoc(docCollapse, { [`items.${folderId}`]: nowCollapsed });
+          try { await updateDoc(docCollapse, { [`items.${folderId}`]: nowCollapsed }); } catch(e){ console.error(e); }
         });
 
-        // Save reviewer
         header.querySelector(`#${folderId}-saverev`).addEventListener('click', async () => {
           if (!CAN_EDIT) return alert("Sign in to edit.");
           const name = (document.getElementById(`rev_input_${folderId}`).value || "").trim();
-          await setDoc(docReviewers, { items: { [folderId]: name } }, { merge: true });
+          try { await setDoc(docReviewers, { items: { [folderId]: name } }, { merge: true }); }
+          catch(e){ alert("No permission to save reviewer."); console.error(e); }
         });
 
         wrapper.appendChild(header);
         wrapper.appendChild(content);
         section.appendChild(wrapper);
 
-        // Initial phrases
         updateSubfolderStatus(folderId);
       }
 
-      // after initial render, ensure inputs reflect editability
       toggleEditability(CAN_EDIT);
       return section;
     }
@@ -436,13 +438,17 @@
         const k64 = b64(key);
         row.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
           checkbox.addEventListener("change", async () => {
-            if (!CAN_EDIT) { checkbox.checked = !checkbox.checked; return alert("Sign in to edit."); }
+            if (!CAN_EDIT) { checkbox.checked = !checkbox.checked; return alert("Sign in with your work account to edit."); }
             const payload = {
               has_test: row.querySelector(".has_test").checked,
               has_doc:  row.querySelector(".has_doc").checked,
               ready:    row.querySelector(".ready").checked
             };
-            await setDoc(docState, { items: { [k64]: payload } }, { merge: true });
+            try {
+              await setDoc(docState, { items: { [k64]: payload } }, { merge: true });
+            } catch (e) {
+              alert("You don't have permission to save changes."); console.error(e);
+            }
           });
         });
       });
@@ -458,87 +464,88 @@
       refreshAllSubfolderStatuses();
     }
 
-    // ===== Firestore reactive sync =====
-    let CURRENT_STATE = { items:{} };
-    let CURRENT_REVIEWERS = { items:{} };
-    let CURRENT_COLLAPSE = { items:{} };
+    // Real-time listeners (attach only after team sign-in)
+    function attachRealtimeListeners() {
+      onSnapshot(docStructure, (snap) => {
+        CURRENT_DATA = snap.exists() ? snap.data() : null;
+        renderFromData(CURRENT_DATA);
+      }, (e) => console.error(e));
 
-    // Live listeners: keep UI in sync for everyone
-    onSnapshot(docStructure, (snap) => {
-      CURRENT_DATA = snap.exists() ? snap.data() : null;
-      renderFromData(CURRENT_DATA);
+      onSnapshot(docState, (snap) => {
+        CURRENT_STATE = snap.exists() ? snap.data() : { items:{} };
+        renderSummary(CURRENT_DATA);
+        refreshAllSubfolderStatuses();
+      }, (e) => console.error(e));
+
+      onSnapshot(docReviewers, (snap) => {
+        CURRENT_REVIEWERS = snap.exists() ? snap.data() : { items:{} };
+        Object.entries(CURRENT_REVIEWERS.items || {}).forEach(([folderId, name]) => {
+          const el = document.getElementById(`rev_input_${folderId}`);
+          if (el) el.value = name || "";
+        });
+      }, (e) => console.error(e));
+
+      onSnapshot(docCollapse, (snap) => {
+        CURRENT_COLLAPSE = snap.exists() ? snap.data() : { items:{} };
+      }, (e) => console.error(e));
+    }
+
+    // Create empty docs after sign-in (allowed by Option B rules)
+    async function ensureDocs() {
+      try {
+        if (!(await getDoc(docStructure)).exists()) await setDoc(docStructure, {});
+        if (!(await getDoc(docState)).exists())     await setDoc(docState,     { items:{} });
+        if (!(await getDoc(docReviewers)).exists()) await setDoc(docReviewers, { items:{} });
+        if (!(await getDoc(docCollapse)).exists())  await setDoc(docCollapse,  { items:{} });
+      } catch (e) { console.warn("ensureDocs failed (permissions?):", e); }
+    }
+
+    // Upload / Export
+    document.getElementById("btn-export").onclick = () => exportJSON();
+    document.getElementById("exportFormat").addEventListener("change", (e) => {
+      document.getElementById("btn-export").onclick = e.target.value === "csv" ? exportCSV : exportJSON;
     });
 
-    onSnapshot(docState, (snap) => {
-      CURRENT_STATE = snap.exists() ? snap.data() : { items:{} };
-      renderSummary(CURRENT_DATA);
-      refreshAllSubfolderStatuses();
-    });
-
-    onSnapshot(docReviewers, (snap) => {
-      CURRENT_REVIEWERS = snap.exists() ? snap.data() : { items:{} };
-      // update inputs without full re-render
-      Object.entries(CURRENT_REVIEWERS.items || {}).forEach(([folderId, name]) => {
-        const el = document.getElementById(`rev_input_${folderId}`);
-        if (el) el.value = name || "";
-      });
-    });
-
-    onSnapshot(docCollapse, (snap) => {
-      CURRENT_COLLAPSE = snap.exists() ? snap.data() : { items:{} };
-      // no immediate DOM patch; respected on next render/toggle
-    });
-
-    // ===== Upload / Export =====
     document.getElementById('fileInput').addEventListener('change', function(evt) {
       const file = evt.target.files[0];
       const reader = new FileReader();
       reader.onload = async (e) => {
+        if (!CAN_EDIT) return alert("Sign in with your work account to upload.");
         const incoming = JSON.parse(e.target.result);
-
-        // Accept either export bundle or plain structure
-        if (incoming && incoming.data && (incoming.state || incoming.reviewers)) {
-          // Export bundle
-          if (incoming.data) await setDoc(docStructure, incoming.data, { merge: false });
-          if (incoming.state) await setDoc(docState, incoming.state, { merge: false });
-          if (incoming.reviewers) await setDoc(docReviewers, incoming.reviewers, { merge: false });
-        } else {
-          // Plain structure only
-          await setDoc(docStructure, incoming, { merge: false });
+        try {
+          if (incoming && incoming.data && (incoming.state || incoming.reviewers)) {
+            if (incoming.data)       await setDoc(docStructure, incoming.data, { merge: false });
+            if (incoming.state)      await setDoc(docState, incoming.state, { merge: false });
+            if (incoming.reviewers)  await setDoc(docReviewers, incoming.reviewers, { merge: false });
+          } else {
+            await setDoc(docStructure, incoming, { merge: false });
+          }
+          alert("Upload saved to Firestore.");
+        } catch (err) {
+          alert("Upload failed. Do you have permission?"); console.error(err);
         }
-        alert("Upload saved to Firestore.");
       };
       reader.readAsText(file);
-      // clear file input to allow re-upload same file later
       evt.target.value = "";
     });
 
-    document.getElementById("btn-export").addEventListener("click", async () => {
+    function exportJSON() {
       const payload = {
-        meta: {
-          exported_at: new Date().toISOString(),
-          version: "2.0",
-          notes: "Includes structure, state, reviewers."
-        },
+        meta: { exported_at: new Date().toISOString(), version: "2.0", notes: "Includes structure, state, reviewers." },
         data: CURRENT_DATA || null,
         state: CURRENT_STATE || { items:{} },
         reviewers: CURRENT_REVIEWERS || { items:{} }
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = "java_file_tracker_export.json";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    });
+      const a = document.createElement("a"); a.href = url; a.download = "java_file_tracker_export.json";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
 
-    // CSV export (reads from live state)
-    document.getElementById("btn-export").insertAdjacentHTML("afterend", "");
     async function exportCSV() {
       const data = CURRENT_DATA;
       const items = safeGet(CURRENT_STATE, "items", {});
       if (!data) return alert("No tracker data found to export.");
-
       const headers = ["section","subfolder","path","file","has_test","has_doc","ready"];
       const rows = [headers];
 
@@ -561,32 +568,11 @@
       const csvWithBom = "\uFEFF" + csvContent;
       const blob = new Blob([csvWithBom], { type:"text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = "java_file_tracker_export.csv";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const a = document.createElement("a"); a.href = url; a.download = "java_file_tracker_export.csv";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     }
 
-    document.getElementById("exportFormat").addEventListener("change", (e) => {
-      qs("#btn-export").onclick = e.target.value === "csv" ? exportCSV : null;
-    });
-    // default: json export
-    qs("#btn-export").onclick = null;
-
-    // Clear local cache (does not touch Firestore)
-    document.getElementById("btn-clear").addEventListener("click", () => {
-      localStorage.clear();
-      alert("Local cache cleared. (Shared Firestore data untouched.)");
-    });
-
-    // Initial bootstrap: ensure docs exist (so onSnapshot works cleanly)
-    async function ensureDocs() {
-      if (!(await getDoc(docStructure)).exists()) await setDoc(docStructure, {});
-      if (!(await getDoc(docState)).exists())     await setDoc(docState,     { items:{} });
-      if (!(await getDoc(docReviewers)).exists()) await setDoc(docReviewers, { items:{} });
-      if (!(await getDoc(docCollapse)).exists())  await setDoc(docCollapse,  { items:{} });
-    }
-    await ensureDocs();
+    document.getElementById("btn-clear").onclick = () => { localStorage.clear(); alert("Local cache cleared."); };
   </script>
 </body>
 </html>
