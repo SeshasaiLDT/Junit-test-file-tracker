@@ -1,0 +1,102 @@
+{
+  "client": {
+    "client/checkout": [
+      {
+        "file": "PaymentProcessor123.java",
+        "path": "client/checkout/PaymentProcessor.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": true
+      },
+      {
+        "file": "CheckoutValidator.java",
+        "path": "client/checkout/CheckoutValidator.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      }
+    ],
+    "client/orderHistory": [
+      {
+        "file": "OrderHistoryFetcher.java",
+        "path": "client/orderHistory/OrderHistoryFetcher.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      },
+      {
+        "file": "OrderDetailFormatter.java",
+        "path": "client/orderHistory/OrderDetailFormatter.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      }
+    ],
+    "client/cart": [
+      {
+        "file": "CartManager.java",
+        "path": "client/cart/CartManager.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      },
+      {
+        "file": "CartItemValidator.java",
+        "path": "client/cart/CartItemValidator.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      }
+    ]
+  },
+  "service": {
+    "service/inventory": [
+      {
+        "file": "StockService.java",
+        "path": "service/inventory/StockService.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      },
+      {
+        "file": "InventoryTracker.java",
+        "path": "service/inventory/InventoryTracker.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      }
+    ],
+    "service/payment": [
+      {
+        "file": "PaymentGateway.java",
+        "path": "service/payment/PaymentGateway.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      },
+      {
+        "file": "RefundService.java",
+        "path": "service/payment/RefundService.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      }
+    ],
+    "service/logging": [
+      {
+        "file": "LogFormatter.java",
+        "path": "service/logging/LogFormatter.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      },
+      {
+        "file": "ErrorReporter.java",
+        "path": "service/logging/ErrorReporter.java",
+        "has_test": false,
+        "has_doc": false,
+        "ready_approval": false
+      }
+    ]
+  }
+}

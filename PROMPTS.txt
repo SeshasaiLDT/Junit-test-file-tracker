@@ -1,0 +1,76 @@
+/*
+📌 INSTRUCTIONS FOR GITHUB COPILOT:
+ 
+Generate comprehensive unit tests for this Java class using JUnit 5.9.3 and Mockito 4.11.0.
+Follow these test design requirements:
+ 
+1. Use Mockito to mock all external dependencies and collaborators.
+2. Use JUnit 5's @ParameterizedTest and @MethodSource/@CsvSource where applicable for repetitive input-output scenarios.
+3. Create test methods that include:
+   - ✅ Positive test cases (expected use)
+   - ❌ Negative test cases (invalid or unexpected input)
+   - ⚠️ Edge cases (e.g., empty, null, boundary conditions)
+   - 💥 Crash-prone scenarios (e.g., exceptions or runtime failures)
+ 
+4. Every test method should:
+   - Have a clear and descriptive name (e.g., testCalculateSum_WithNullList_ShouldThrowException)
+   - Include JUnit 5 assertions (assertEquals, assertThrows, etc.)
+   - Be isolated and follow Arrange–Act–Assert structure
+   - Include a comment ABOVE the method that describes what test case it covers
+   - Use @DisplayName where helpful for readability
+ 
+5. Structure:
+   - Use @BeforeEach for common mock setups
+   - Use Mockito.when() and Mockito.verify() appropriately
+   - Target 100% code coverage for all public methods and all logical branches
+ 
+Copilot: Please follow these guidelines and add helpful comments to each test.
+*/
+ 
+package com.yourapp.feature;
+ 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.CsvSource;
+ 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+ 
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+ 
+public class <ClassName>Test {
+ 
+    @Mock
+    private SomeDependency someDependency;
+ 
+    private <ClassName> classUnderTest;
+ 
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        classUnderTest = new <ClassName>(someDependency);
+    }
+ 
+    // Example structure:
+    // ------------------------------------------------
+    // /**
+    //  * ✅ Test for standard input with expected behavior.
+    //  */
+    // @Test
+    // @DisplayName("Should return correct total when valid input is given")
+    // void testCalculateTotal_WithValidInput_ReturnsExpectedValue() {
+    //     // Arrange
+    //     when(someDependency.getValue()).thenReturn(10);
+    //
+    //     // Act
+    //     int result = classUnderTest.calculateTotal();
+    //
+    //     // Assert
+    //     assertEquals(10, result);
+    // }
+ 
+}
