@@ -18,7 +18,8 @@
     button { margin-left: 4px; }
     select { padding: 4px; }
 
-    .authbar { display:flex; gap:10px; align-items:center; margin:8px 0 16px; }
+    .authbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 16px; }
+    .authbar input[type="email"], .authbar input[type="password"] { padding:6px 8px; width:220px; }
     .muted { color:#555; font-size:12px; }
 
     .summary {
@@ -47,10 +48,15 @@
 <body>
   <h1>Java File Tracker</h1>
 
-  <div class="authbar">
-    <span id="auth-status" class="muted">Sign in with your work account to view.</span>
-    <button id="btn-signin">Sign in with Google</button>
+  <!-- Email/password auth -->
+  <div class="authbar" id="authbar">
+    <span id="auth-status" class="muted">Sign in to view.</span>
+    <input type="email" id="email" placeholder="your@email.com" autocomplete="username">
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+    <button id="btn-email-signin">Sign in</button>
+    <button id="btn-reset" title="Send password reset email">Forgot?</button>
     <button id="btn-signout" class="hidden">Sign out</button>
+    <span id="auth-error" class="muted" style="color:#b00020;"></span>
   </div>
 
   <div id="controls" class="hidden">
@@ -89,12 +95,13 @@
 
   <div id="content"></div>
 
+  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    // ======= CONFIGURED FOR YOU =======
+    // Your config
     const firebaseConfig = {
       apiKey: "AIzaSyBuuPs1hcf38PnLli_MSm0K7JS-aKLO0QU",
       authDomain: "junit-files-tracker.firebaseapp.com",
@@ -104,16 +111,13 @@
       appId: "1:1053194892033:web:f33ed0a4e5aadda311e100",
       measurementId: "G-T7VJL380SX"
     };
-    const TEAM_DOMAINS = ["discounttire.com"]; // Option B allowlist
-    const REQUIRE_AUTH_FOR_READS = true;        // Option B
-    // ===================================
+
+    // Require auth for reads (Option B)
+    const REQUIRE_AUTH_FOR_READS = true;
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ hd: "discounttire.com", prompt: "select_account" }); // UX hint
 
     // Firestore docs
     const docStructure = doc(db, "tracker", "structure");
@@ -137,28 +141,35 @@
     const FOLDER_FILES = {};
     window._listenersAttached = false;
 
-    function isTeamUser(user) {
-      if (!user || !user.email) return false;
-      const email = user.email.toLowerCase();
-      return TEAM_DOMAINS.some(d => email.endsWith(`@${d.toLowerCase()}`));
-    }
-
     // Auth UI
-    const authStatus = qs("#auth-status");
-    const btnSignin = qs("#btn-signin");
-    const btnSignout = qs("#btn-signout");
+    const emailEl = qs("#email");
+    const passEl  = qs("#password");
+    const btnIn   = qs("#btn-email-signin");
+    const btnOut  = qs("#btn-signout");
+    const btnReset= qs("#btn-reset");
+    const statusEl= qs("#auth-status");
+    const errEl   = qs("#auth-error");
 
-    btnSignin.onclick = async () => { try { await signInWithPopup(auth, provider); } catch(e){ alert("Sign-in failed."); console.error(e);} };
-    btnSignout.onclick = async () => { try { await signOut(auth); location.reload(); } catch(e){ console.error(e);} };
+    btnIn.onclick = async () => {
+      errEl.textContent = "";
+      try {
+        await signInWithEmailAndPassword(auth, (emailEl.value || "").trim(), passEl.value || "");
+      } catch (e) {
+        errEl.textContent = "Sign-in failed. Check your email/password.";
+        console.error(e);
+      }
+    };
+    btnOut.onclick = async () => { try { await signOut(auth); location.reload(); } catch(e){ console.error(e);} };
+    btnReset.onclick = async () => {
+      const email = (emailEl.value || "").trim();
+      if (!email) return alert("Enter your email first.");
+      try { await sendPasswordResetEmail(auth, email); alert("Password reset email sent."); }
+      catch(e){ alert("Could not send reset email."); console.error(e); }
+    };
 
     onAuthStateChanged(auth, async (user) => {
-      if (user && !isTeamUser(user)) {
-        alert(`Please sign in with your work account (${TEAM_DOMAINS.join(", ")})`);
-        await signOut(auth);
-        return;
-      }
       if (!user) {
-        authStatus.textContent = "Sign in with your work account to view.";
+        statusEl.textContent = "Sign in to view.";
         show(qs("#controls"), false);
         show(qs("#summary"), false);
         show(qs("#summary-client"), false);
@@ -167,17 +178,25 @@
         return;
       }
 
-      // Team user
+      // Check if user is allowlisted by trying to read structure
+      try {
+        await getDoc(docStructure);
+      } catch (e) {
+        statusEl.textContent = "You are signed in but not authorized. Contact the owner.";
+        console.warn("Not allowlisted:", e);
+        return;
+      }
+
+      // Authorized
       CAN_EDIT = true;
-      authStatus.textContent = `Signed in as ${user.email}`;
-      show(btnSignin, false);
-      show(btnSignout, true);
+      statusEl.textContent = `Signed in as ${user.email}`;
+      show(btnOut, true);
       show(qs("#controls"), true);
       show(qs("#summary"), true);
       show(qs("#summary-client"), true);
       show(qs("#summary-service"), true);
 
-      await ensureDocs(); // create empty docs once you’re allowed
+      await ensureDocs();
 
       if (!window._listenersAttached) {
         attachRealtimeListeners();
@@ -188,7 +207,6 @@
     // Utils
     const b64 = s => btoa(unescape(encodeURIComponent(s)));
     const safeGet = (obj, path, fallback) => { try { return path.split('.').reduce((o,k)=>o[k], obj) ?? fallback; } catch { return fallback; } };
-
     function toggleEditability(can) {
       qsa("input[type='checkbox'], .reviewer-input, .rev-save-btn").forEach(el => {
         if (can) el.removeAttribute("disabled"); else el.setAttribute("disabled","true");
@@ -438,7 +456,7 @@
         const k64 = b64(key);
         row.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
           checkbox.addEventListener("change", async () => {
-            if (!CAN_EDIT) { checkbox.checked = !checkbox.checked; return alert("Sign in with your work account to edit."); }
+            if (!CAN_EDIT) { checkbox.checked = !checkbox.checked; return alert("Sign in to edit."); }
             const payload = {
               has_test: row.querySelector(".has_test").checked,
               has_doc:  row.querySelector(".has_doc").checked,
@@ -464,7 +482,7 @@
       refreshAllSubfolderStatuses();
     }
 
-    // Real-time listeners (attach only after team sign-in)
+    // Real-time listeners (attach only after allowlisted sign-in)
     function attachRealtimeListeners() {
       onSnapshot(docStructure, (snap) => {
         CURRENT_DATA = snap.exists() ? snap.data() : null;
@@ -490,7 +508,7 @@
       }, (e) => console.error(e));
     }
 
-    // Create empty docs after sign-in (allowed by Option B rules)
+    // Create empty docs after authorized sign-in
     async function ensureDocs() {
       try {
         if (!(await getDoc(docStructure)).exists()) await setDoc(docStructure, {});
@@ -510,7 +528,7 @@
       const file = evt.target.files[0];
       const reader = new FileReader();
       reader.onload = async (e) => {
-        if (!CAN_EDIT) return alert("Sign in with your work account to upload.");
+        if (!CAN_EDIT) return alert("Sign in to upload.");
         const incoming = JSON.parse(e.target.result);
         try {
           if (incoming && incoming.data && (incoming.state || incoming.reviewers)) {
